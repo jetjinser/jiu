@@ -1,0 +1,9 @@
+#lang zuo/private/looper
+
+(let* ([maker (hash-ref (module->hash 'zuo/private/base) 'make-language #f)]
+       [makeRE (hash-ref (module->hash 'jiu/private/base) 'make-read-and-eval #f)]
+       [base-lang (maker 'jiu/private/main)]
+       [base-eval (hash-ref base-lang 'read-and-eval)])
+  (hash-set base-lang
+            'read-and-eval
+            (makeRE base-eval)))

@@ -1,0 +1,6 @@
+#lang zuo/datum
+
+(hash 'make-read-and-eval
+      (lambda (base-eval)
+        (lambda (str start mod-path)
+          (base-eval str start mod-path))))

@@ -1,0 +1,3 @@
+#lang zuo/private/stitcher
+
+(include "./entry.zuo")

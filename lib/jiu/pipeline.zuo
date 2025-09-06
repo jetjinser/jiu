@@ -1,0 +1,148 @@
+;; Inspired by the threading-lib library for Racket by Alexis King <lexi.lambda@gmail.com>.
+;; Implementation written independently without using threading-lib source code.
+;; Author: Jinser Kafka <aimer@purejs.icu>
+;; License: MIT
+
+#lang zuo/base
+
+(provide ~>
+         lambda~>
+         lambda~>*
+         and~>
+         tee~>
+         when~>
+         unless~>
+         cond~>)
+
+(define (memq x lst)
+  (cond
+    [(null? lst) #f]
+    [(eq? x (car lst)) lst]
+    [else (memq x (cdr lst))]))
+
+(define (takef lst pred)
+  (if (and (pair? lst) (pred (car lst)))
+      (cons (car lst) (takef (cdr lst) pred))
+      '()))
+
+(define (expand acc clause)
+  (cond
+    [(symbol? clause) ; bare-id
+     (list clause acc)]
+    [(and (pair? clause)
+          (eq? (car clause) 'quote)) ; 'datum
+     (list clause acc)]
+    [(and (pair? clause)
+          (memq '_ clause)) ; (pre ... _ post ...)
+     (let* ([m (memq '_ clause)]
+            [pre (takef clause (lambda (x) (not (eq? x '_))))]
+            [post (cdr m)])
+       (append pre (list acc) post))]
+    [(pair? clause) ; (head arg ...)
+     (cons (car clause) (cons acc (cdr clause)))]
+    [else
+     (bad-syntax clause)]))
+
+(define-syntax ~>
+  (lambda (stx)
+    (cond
+      [(and (list? stx) (= (length stx) 2))
+       (cadr stx)]
+      [(and (list? stx) (>= (length stx) 3))
+       (let loop ([acc (cadr stx)]
+                  [tss (cddr stx)])
+         (if (null? tss)
+             acc
+             (loop (expand acc (car tss))
+                   (cdr tss))))]
+      [else (bad-syntax stx)])))
+
+(define-syntax lambda~>
+  (lambda (stx)
+    (if (and (list? stx) (>= (length stx) 2))
+        (list 'lambda (list 'x)
+              (cons '~> (cons 'x (cdr stx))))
+        (bad-syntax stx))))
+
+(define-syntax lambda~>*
+  (lambda (stx)
+    (if (and (list? stx) (>= (length stx) 2))
+        (list 'lambda 'args
+              (cons '~> (cons 'args (cdr stx))))
+        (bad-syntax stx))))
+
+(define-syntax and~>
+  (lambda (stx)
+    (cond
+      [(and (list? stx) (= (length stx) 2))
+       (cadr stx)]
+      [(and (list? stx) (>= (length stx) 3))
+       (let loop ([acc (cadr stx)] [ops (cddr stx)])
+         (if (null? ops)
+             acc
+             (let ([tmp 'tmp])
+               (list 'let (list (list tmp acc))
+                     (list 'if tmp
+                           (loop (expand tmp (car ops)) (cdr ops))
+                           #f)))))]
+      [else (bad-syntax stx)])))
+
+(define-syntax tee~>
+  (lambda (stx)
+    (cond
+      [(and (list? stx) (= (length stx) 2))
+       (cadr stx)]
+      [(and (list? stx) (>= (length stx) 3))
+       (let ([tmp 'tmp])
+         (list 'let (list (list tmp (cadr stx)))
+               (cons '~> (cons tmp (cddr stx)))
+               tmp))]
+      [else (bad-syntax stx)])))
+
+(define-syntax when~>
+  (lambda (stx)
+    (cond
+      [(and (list? stx) (= (length stx) 3))
+       (let ([tmp 'tmp])
+         (list 'let (list (list tmp (cadr stx)))
+               (list 'if (car (cddr stx))
+                     tmp
+                     tmp)))]
+      [(and (list? stx) (>= (length stx) 4))
+       (let ([tmp 'tmp])
+         (list 'let (list (list tmp (cadr stx)))
+               (list 'if (car (cddr stx))
+                     (cons '~> (cons tmp (cdr (cddr stx))))
+                     tmp)))]
+      [else (bad-syntax stx)])))
+
+(define-syntax unless~>
+  (lambda (stx)
+    (if (and (list? stx) (>= (length stx) 3))
+        (cons 'when~>
+              (cons (cadr stx)
+                    (cons (list 'not (car (cddr stx)))
+                          (cdr (cddr stx)))))
+        (bad-syntax stx))))
+
+(define-syntax cond~>
+  (lambda (stx)
+    (cond
+      [(and (list? stx) (= (length stx) 2))
+       (cadr stx)]
+      [(and (list? stx) (>= (length stx) 3))
+       (let ([tmp 'tmp]
+             [clauses (cddr stx)])
+         (define (build-cond-clauses cs)
+           (if (null? cs)
+               (list (list 'else tmp))
+               (let ([clause (car cs)])
+                 (if (and (pair? clause) (eq? (car clause) 'else))
+                     (list (cons 'else
+                                 (list (cons '~> (cons tmp (cdr clause))))))
+                     (cons (list (car clause)
+                                 (cons '~> (cons tmp (cdr clause))))
+                           (build-cond-clauses (cdr cs)))))))
+         (list 'let (list (list tmp (cadr stx)))
+               (cons 'cond (build-cond-clauses clauses))))]
+      [else (bad-syntax stx)])))
