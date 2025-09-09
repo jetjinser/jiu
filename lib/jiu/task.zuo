@@ -1,0 +1,30 @@
+#lang zuo/base
+
+(provide define/provide
+         define/task)
+
+;; FIXME: `,@(cddr stx)` eval when macro expand
+
+(define-syntax define/provide
+  (lambda (stx)
+    (cond
+      [(and (list? stx) (>= (length stx) 3) (list? (cadr stx)))
+       `(begin
+          (define ,(cadr stx) ,@(cddr stx))
+          (provide ,(car (cadr stx))))]
+      [(and (list? stx) (>= (length stx) 3))
+       `(begin
+          (define ,(cadr stx) ,@(cddr stx))
+          (provide ,(cadr stx)))]
+      [else (bad-syntax stx)])))
+
+(define-syntax define/task
+  (lambda (stx)
+    (cond
+      [(and (list? stx) (>= (length stx) 4))
+       `(define/provide ,(string->symbol
+                           (string-join (list (symbol->string (cadr stx))
+                                              "^task") ""))
+          ,@(cdr (cddr stx)))]
+      [else (bad-syntax stx)])))
+

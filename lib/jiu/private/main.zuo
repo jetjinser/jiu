@@ -23,7 +23,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;
 
-(require jiu/pipeline)
+(require jiu/pipeline
+         jiu/task)
 
 (provide (all-from-out
-           jiu/pipeline))
+           jiu/pipeline
+           jiu/task))

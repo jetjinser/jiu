@@ -1,0 +1,5 @@
+#lang zuo
+
+(require "./main.zuo")
+
+(displayln default)

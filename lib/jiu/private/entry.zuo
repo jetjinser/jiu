@@ -1,5 +1,6 @@
 #lang zuo/datum
 
+;; may custom syntax in future?
 (hash 'make-read-and-eval
       (lambda (base-eval)
         (lambda (str start mod-path)
